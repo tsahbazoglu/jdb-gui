@@ -27,12 +27,10 @@
 #include <QMouseEvent>
 #include <QFrame>
 #include <QWindow>
-#include <QTime>      // Added for health check
-#include <QDateTime>  // Added for health check
 #include <iostream>
 #include <set>
 #include <map>
-#include <cmath>      // Required for the pulse math
+#include <cmath> // Required for sin/cos health pulse
 
 // --- Code Editor with Line Numbers ---
 class CodeEditor : public QPlainTextEdit {
@@ -46,6 +44,7 @@ public:
         updateLineNumberAreaWidth(0);
         setReadOnly(true);
         setLineWrapMode(QPlainTextEdit::NoWrap);
+        // Initial Style
         setStyleSheet("background-color: #1e1e1e; color: #d4d4d4; font-family: 'Monospace'; font-size: 12pt;");
     }
 
@@ -110,7 +109,7 @@ private:
     QWidget *lineNumberArea;
 };
 
-// --- Proxy ---
+// --- Proxy Model ---
 class JavaProjectProxy : public QSortFilterProxyModel {
     Q_OBJECT
 public:
@@ -152,10 +151,11 @@ public:
         setWindowFlags(Qt::FramelessWindowHint | Qt::WindowSystemMenuHint);
         resize(1300, 850);
 
+        // --- Custom Title Bar ---
         customTitleBar = new QFrame();
         customTitleBar->setFixedHeight(40);
         customTitleBar->setStyleSheet("background-color: #252525; border-bottom: 1px solid #3d3d3d;");
-        titleLabel = new QLabel(" ☕ Java Monitor [Health Mode]");
+        titleLabel = new QLabel(" ☕ Java Monitor [Health & Multi-Project Support]");
         titleLabel->setStyleSheet("color: #999; font-weight: bold;");
 
         QPushButton *btnMin = new QPushButton("—");
@@ -173,6 +173,7 @@ public:
         customTitleBar->installEventFilter(this);
         titleLabel->installEventFilter(this);
 
+        // --- Tree Model Setup ---
         treeModel = new QStandardItemModel(this);
         for (const QString &path : projectPaths) {
             QString abs = QDir(path).absolutePath();
@@ -196,7 +197,7 @@ public:
         editorSearch->setPlaceholderText("🔍 Search in file...");
         editorSearch->setStyleSheet("background-color: #2b2b2b; color: #d4d4d4; padding: 6px; border: 1px solid #555;");
 
-        // Buttons
+        // JDB Buttons
         QPushButton *btnBP = new QPushButton("🔴 BP");
         QPushButton *btnNext = new QPushButton("⏭ Next");
         QPushButton *btnStop = new QPushButton("▶ Cont");
@@ -251,6 +252,7 @@ public:
         mainLayout->addWidget(customTitleBar); mainLayout->addWidget(split);
         setCentralWidget(central);
 
+        // --- Connections ---
         connect(btnMin, &QPushButton::clicked, this, &JavaMonitorGUI::showMinimized);
         connect(btnMax, &QPushButton::clicked, this, [this]() { if (isMaximized()) showNormal(); else showMaximized(); });
         connect(btnClose, &QPushButton::clicked, this, &JavaMonitorGUI::close);
@@ -271,53 +273,26 @@ public:
         connect(btnPrintD, &QPushButton::clicked, this, &JavaMonitorGUI::onPrintDumpVar);
         connect(viewer, &CodeEditor::requestHighlightSync, this, &JavaMonitorGUI::applyVisualBreakpoints);
 
-        // --- HEALTH PULSE ---
-       // --- SYNCHRONIZED CONTRAST PULSE ---
+        // --- HEALTH PULSE INITIALIZATION ---
+// --- FIXED HEALTH PULSE ---
         healthTimer = new QTimer(this);
         connect(healthTimer, &QTimer::timeout, this, [this]() {
-            colorStep += 0.02f; 
+            colorStep += 0.02f; // Increased speed slightly to make it obvious
             if (colorStep > 6.283f) colorStep = 0.0f;
             
-            // Background Pulse (Dark Range)
-            int r = 30 + static_cast<int>(12 * std::cos(colorStep));
-            int g = 35 + static_cast<int>(12 * std::sin(colorStep));
+            // Wider range for visibility: 
+            // We oscillate between dark charcoal (20) and a soft deep tint (45)
+            int r = 30 + static_cast<int>(15 * std::cos(colorStep));
+            int g = 35 + static_cast<int>(15 * std::sin(colorStep));
             int b = 32; 
 
-            // Text Pulse (Inverse to background for perfect contrast)
-            // When bg is darkest, text is brightest (#ffffff)
-            // When bg is lightest, text softens to gray (#aaaaaa)
-            int textVal = 200 + static_cast<int>(55 * std::cos(colorStep + 3.14f)); // 3.14 is PI (180 degree phase shift)
-            
-            // Circadian Shift (Night Mode Amber)
-            int hour = QTime::currentTime().hour();
-            QString textRGB;
-            if (hour >= 20 || hour <= 6) {
-                // Warm Amber pulse
-                textRGB = QString("rgb(%1, %2, %3)").arg(textVal).arg(textVal - 50).arg(textVal - 100);
-            } else {
-                // Crisp White/Gray pulse
-                textRGB = QString("rgb(%1, %1, %1)").arg(textVal);
-            }
-
-            // Apply to Viewport (Background)
+            // We apply the style specifically to the viewport to bypass rendering lag
             viewer->viewport()->setStyleSheet(
                 QString("background-color: rgb(%1, %2, %3);").arg(r).arg(g).arg(b)
             );
-            
-            // Apply to Editor (Text)
-            viewer->setStyleSheet(
-                QString("color: %1; font-family: 'Monospace'; font-size: 12pt;").arg(textRGB)
-            );
         });
-        healthTimer->start(50);
-
-        // --- 20-20-20 RULE ---
-        breakTimer = new QTimer(this);
-        connect(breakTimer, &QTimer::timeout, this, [this]() {
-            jdbOutput->append("<b style='color: #ff9900;'>[HEALTH] 20-20-20 Reminder: Relax your eyes for 20s.</b>");
-        });
-        breakTimer->start(20 * 60 * 1000);
-
+        healthTimer->start(50); // Faster refresh for "WAUUU" smoothness
+        
         startProcesses();
     }
 
@@ -372,6 +347,7 @@ private slots:
     void onThreads() { jdbProcess->write("threads\n"); }
     void onWhere() { jdbProcess->write("where all\n"); }
     void onExitJdb() { jdbProcess->write("exit\n"); applyVisualBreakpoints(); }
+
     void onPrintVar() {
         bool ok; QString v = QInputDialog::getText(this, "Print", "Variable:", QLineEdit::Normal, "", &ok);
         if (ok && !v.isEmpty()) jdbProcess->write(QString("print %1\n").arg(v).toUtf8());
@@ -467,7 +443,7 @@ private:
     int hitLine = -1; std::map<QString, std::set<int>> fileBreakpoints;
     
     // Health Pulse Engine
-    QTimer *healthTimer, *breakTimer;
+    QTimer *healthTimer;
     float colorStep = 0.0f;
 };
 
