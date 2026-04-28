@@ -107,7 +107,7 @@ private:
     QWidget *lineNumberArea;
 };
 
-// --- Proxy ---
+// --- Proxy Model for Project Tree ---
 class JavaProjectProxy : public QSortFilterProxyModel {
     Q_OBJECT
 public:
@@ -149,6 +149,7 @@ public:
         setWindowFlags(Qt::FramelessWindowHint | Qt::WindowSystemMenuHint);
         resize(1300, 850);
 
+        // --- Custom Title Bar ---
         customTitleBar = new QFrame();
         customTitleBar->setFixedHeight(40);
         customTitleBar->setStyleSheet("background-color: #252525; border-bottom: 1px solid #3d3d3d;");
@@ -172,6 +173,7 @@ public:
         customTitleBar->installEventFilter(this);
         titleLabel->installEventFilter(this);
 
+        // --- Tree Model Setup ---
         treeModel = new QStandardItemModel(this);
         for (const QString &path : projectPaths) {
             QString abs = QDir(path).absolutePath();
@@ -184,6 +186,7 @@ public:
         proxyModel = new JavaProjectProxy(this);
         proxyModel->setSourceModel(treeModel);
 
+        // --- Layout and Components ---
         searchBar = new QLineEdit();
         searchBar->setPlaceholderText("Teleport search...");
         tree = new QTreeView();
@@ -250,6 +253,7 @@ public:
         mainLayout->addWidget(customTitleBar); mainLayout->addWidget(split);
         setCentralWidget(central);
 
+        // --- Connections ---
         connect(btnMin, &QPushButton::clicked, this, &JavaMonitorGUI::showMinimized);
         connect(btnMax, &QPushButton::clicked, this, [this]() { if (isMaximized()) showNormal(); else showMaximized(); });
         connect(btnClose, &QPushButton::clicked, this, &JavaMonitorGUI::close);
@@ -271,6 +275,18 @@ public:
         connect(viewer, &CodeEditor::requestHighlightSync, this, &JavaMonitorGUI::applyVisualBreakpoints);
 
         startProcesses();
+    }
+
+    // --- DESTRUCTOR: Clean shut down ---
+    ~JavaMonitorGUI() {
+        if (jdbProcess && jdbProcess->state() == QProcess::Running) {
+            jdbProcess->write("exit\n");
+            if (!jdbProcess->waitForFinished(500)) jdbProcess->kill();
+        }
+        if (javaProcess && javaProcess->state() == QProcess::Running) {
+            javaProcess->terminate();
+            if (!javaProcess->waitForFinished(500)) javaProcess->kill();
+        }
     }
 
 private slots:
@@ -326,15 +342,15 @@ private slots:
     void handleJdbOutput() {
         QString o = jdbProcess->readAllStandardOutput(); jdbBuffer += o; jdbOutput->append(o.trimmed());
         if (!jdbBuffer.contains('\n')) return;
-        // REGEX GÜNCELLENDİ: Virgüllü sayıları yakalamak için [\\d,]+ kullanıyoruz
+        // Fix for "1,040" commas using [\\d,]+
         static QRegularExpression re("Breakpoint hit:.*thread=(\\S+).*,\\s+(\\S+)\\.\\w+\\(.*\\),\\s+line=([\\d,]+)");
         QRegularExpressionMatch m = re.match(jdbBuffer);
         if (m.hasMatch()) {
             hitFilePath = findPathFromClass(m.captured(2).trimmed()); 
             
-            // VİRGÜL TEMİZLİĞİ: "1,040" -> "1040"
+            // Clean comma and convert to int
             QString lineStr = m.captured(3).trimmed();
-            lineStr.remove(','); 
+            lineStr.remove(',');
             hitLine = lineStr.toInt();
 
             jdbBuffer.clear();
@@ -374,7 +390,7 @@ private slots:
     void startProcesses() {
         if (projectPaths.isEmpty()) return;
         javaProcess = new QProcess(this);
-        javaProcess->start("java", QStringList() << "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=9009" << "-cp" << projectPaths[0] + "/target/classes" << "com.tspb.Main");
+        javaProcess->start("java", QStringList() << "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=9009" << "-cp" << projectPaths[0] + "/target/classes" << "tr.org.tspb.Main");
         jdbProcess = new QProcess(this);
         jdbProcess->start("jdb", QStringList() << "-attach" << "9009");
         connect(jdbProcess, &QProcess::readyReadStandardOutput, this, &JavaMonitorGUI::handleJdbOutput);
