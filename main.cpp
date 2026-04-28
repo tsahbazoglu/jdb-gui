@@ -26,7 +26,7 @@
 #include <QTimer>
 #include <QMouseEvent>
 #include <QFrame>
-#include <QWindow> // Required for startSystemMove()
+#include <QWindow>
 #include <iostream>
 #include <set>
 #include <map>
@@ -126,23 +126,16 @@ class JavaMonitorGUI : public QMainWindow {
     Q_OBJECT
 
 protected:
-    // --- COMBINED BRAIN: Handles System-Level Dragging and Maximize ---
     bool eventFilter(QObject *obj, QEvent *event) override {
         if (obj == customTitleBar || obj == titleLabel) {
-            
             if (event->type() == QEvent::MouseButtonDblClick) {
-                if (isMaximized()) showNormal();
-                else showMaximized();
+                if (isMaximized()) showNormal(); else showMaximized();
                 return true;
             }
-
             if (event->type() == QEvent::MouseButtonPress) {
                 QMouseEvent *m = static_cast<QMouseEvent*>(event);
-                if (m->button() == Qt::LeftButton) {
-                    // WAYLAND / LINUX MAGIC: Pass drag control to the OS
-                    if (windowHandle()) {
-                        windowHandle()->startSystemMove();
-                    }
+                if (m->button() == Qt::LeftButton && windowHandle()) {
+                    windowHandle()->startSystemMove();
                     return true;
                 }
             }
@@ -151,48 +144,43 @@ protected:
     }
 
 public:
-    JavaMonitorGUI(QString path) {
-        projectPath = QDir(path).absolutePath();
+    JavaMonitorGUI(QStringList paths) {
+        projectPaths = paths;
         setWindowFlags(Qt::FramelessWindowHint | Qt::WindowSystemMenuHint);
         resize(1300, 850);
 
-        // --- CUSTOM TITLE BAR ---
         customTitleBar = new QFrame();
         customTitleBar->setFixedHeight(40);
         customTitleBar->setStyleSheet("background-color: #252525; border-bottom: 1px solid #3d3d3d;");
-        
-        titleLabel = new QLabel(" ☕ Java Monitor [RESTORED] - " + projectPath);
+        titleLabel = new QLabel(" ☕ Java Monitor [Multi-Project Support]");
         titleLabel->setStyleSheet("color: #999; font-weight: bold;");
 
-        // Window Controls
         QPushButton *btnMin = new QPushButton("—");
         QPushButton *btnMax = new QPushButton("⬜");
         QPushButton *btnClose = new QPushButton("✕");
-
         QString ctrlStyle = "QPushButton { background: transparent; color: #aaa; border: none; width: 45px; height: 40px; font-size: 14px; }"
                             "QPushButton:hover { background: #444; }"
                             "QPushButton#closeBtn:hover { background: #e81123; color: white; }";
-        
-        btnMin->setStyleSheet(ctrlStyle);
-        btnMax->setStyleSheet(ctrlStyle);
-        btnClose->setObjectName("closeBtn");
-        btnClose->setStyleSheet(ctrlStyle);
+        btnMin->setStyleSheet(ctrlStyle); btnMax->setStyleSheet(ctrlStyle);
+        btnClose->setObjectName("closeBtn"); btnClose->setStyleSheet(ctrlStyle);
 
         QHBoxLayout *titleLayout = new QHBoxLayout(customTitleBar);
         titleLayout->setContentsMargins(10, 0, 0, 0);
-        titleLayout->addWidget(titleLabel);
-        titleLayout->addStretch();
-        titleLayout->addWidget(btnMin);
-        titleLayout->addWidget(btnMax);
-        titleLayout->addWidget(btnClose);
+        titleLayout->addWidget(titleLabel); titleLayout->addStretch();
+        titleLayout->addWidget(btnMin); titleLayout->addWidget(btnMax); titleLayout->addWidget(btnClose);
 
-        // --- ACTIVATE EVENT FILTER ---
         customTitleBar->installEventFilter(this);
         titleLabel->installEventFilter(this);
 
-        // --- COMPONENTS ---
         treeModel = new QStandardItemModel(this);
-        buildTree(projectPath, treeModel->invisibleRootItem());
+        for (const QString &path : projectPaths) {
+            QString abs = QDir(path).absolutePath();
+            QStandardItem *rootItem = new QStandardItem(QFileInfo(abs).fileName());
+            rootItem->setData(abs, Qt::UserRole);
+            treeModel->invisibleRootItem()->appendRow(rootItem);
+            buildTree(abs, rootItem);
+        }
+
         proxyModel = new JavaProjectProxy(this);
         proxyModel->setSourceModel(treeModel);
 
@@ -235,12 +223,10 @@ public:
         btnPrint->setStyleSheet("background-color: #2a5a2a; " + bStyle);
         btnPrintD->setStyleSheet("background-color: #2a5a2a; " + bStyle);
 
-        // --- LAYOUT ---
         QSplitter *split = new QSplitter(Qt::Horizontal);
         QWidget *left = new QWidget();
         QVBoxLayout *lbox = new QVBoxLayout(left);
-        lbox->addWidget(searchBar);
-        lbox->addWidget(tree);
+        lbox->addWidget(searchBar); lbox->addWidget(tree);
 
         QWidget *right = new QWidget();
         QVBoxLayout *rbox = new QVBoxLayout(right);
@@ -255,30 +241,18 @@ public:
         jdbOutput->setMaximumHeight(150);
         jdbOutput->setStyleSheet("background-color: #111111; color: #00ff99; font-family: 'Monospace'; border: 1px solid #333;");
 
-        rbox->addWidget(editorSearch);
-        rbox->addWidget(viewer);
-        rbox->addWidget(jdbOutput);
-        rbox->addLayout(btnBar);
-
-        split->addWidget(left);
-        split->addWidget(right);
-        split->setStretchFactor(1, 2);
+        rbox->addWidget(editorSearch); rbox->addWidget(viewer); rbox->addWidget(jdbOutput); rbox->addLayout(btnBar);
+        split->addWidget(left); split->addWidget(right); split->setStretchFactor(1, 2);
 
         QWidget *central = new QWidget();
         QVBoxLayout *mainLayout = new QVBoxLayout(central);
-        mainLayout->setContentsMargins(0, 0, 0, 0);
-        mainLayout->setSpacing(0);
-        mainLayout->addWidget(customTitleBar);
-        mainLayout->addWidget(split);
+        mainLayout->setContentsMargins(0, 0, 0, 0); mainLayout->setSpacing(0);
+        mainLayout->addWidget(customTitleBar); mainLayout->addWidget(split);
         setCentralWidget(central);
 
-        // --- CONNECTIONS ---
         connect(btnMin, &QPushButton::clicked, this, &JavaMonitorGUI::showMinimized);
-        connect(btnMax, &QPushButton::clicked, this, [this]() {
-            if (isMaximized()) showNormal(); else showMaximized();
-        });
+        connect(btnMax, &QPushButton::clicked, this, [this]() { if (isMaximized()) showNormal(); else showMaximized(); });
         connect(btnClose, &QPushButton::clicked, this, &JavaMonitorGUI::close);
-
         connect(searchBar, &QLineEdit::textChanged, this, &JavaMonitorGUI::onSearch);
         connect(editorSearch, &QLineEdit::textChanged, this, &JavaMonitorGUI::onEditorSearch);
         connect(tree, &QTreeView::clicked, this, &JavaMonitorGUI::onFileClicked);
@@ -297,15 +271,6 @@ public:
         connect(viewer, &CodeEditor::requestHighlightSync, this, &JavaMonitorGUI::applyVisualBreakpoints);
 
         startProcesses();
-    }
-
-    ~JavaMonitorGUI() {
-        if (jdbProcess && jdbProcess->state() == QProcess::Running) {
-            jdbProcess->write("exit\n"); jdbProcess->waitForFinished(1000);
-        }
-        if (javaProcess && javaProcess->state() == QProcess::Running) {
-            javaProcess->terminate(); javaProcess->waitForFinished(1000);
-        }
     }
 
 private slots:
@@ -343,7 +308,7 @@ private slots:
     void onStop() { jdbProcess->write("cont\n"); hitLine = -1; hitFilePath.clear(); applyVisualBreakpoints(); }
     void onStepInto() { jdbProcess->write("step\n"); }
     void onStepOut() { jdbProcess->write("step up\n"); }
-    void onLocals() { jdbProcess->write("locals\n"); jdbOutput->append("\n--- locals ---"); }
+    void onLocals() { jdbProcess->write("locals\n"); }
     void onStack() { jdbProcess->write("where\n"); }
     void onThreads() { jdbProcess->write("threads\n"); }
     void onWhere() { jdbProcess->write("where all\n"); }
@@ -351,20 +316,27 @@ private slots:
 
     void onPrintVar() {
         bool ok; QString v = QInputDialog::getText(this, "Print", "Variable:", QLineEdit::Normal, "", &ok);
-        if (ok && !v.isEmpty()) { jdbProcess->write(QString("print %1\n").arg(v).toUtf8()); jdbOutput->append("\n>>> print " + v); }
+        if (ok && !v.isEmpty()) jdbProcess->write(QString("print %1\n").arg(v).toUtf8());
     }
     void onPrintDumpVar() {
         bool ok; QString v = QInputDialog::getText(this, "Dump", "Variable:", QLineEdit::Normal, "", &ok);
-        if (ok && !v.isEmpty()) { jdbProcess->write(QString("dump %1\n").arg(v).toUtf8()); jdbOutput->append("\n>>> dump " + v); }
+        if (ok && !v.isEmpty()) jdbProcess->write(QString("dump %1\n").arg(v).toUtf8());
     }
 
     void handleJdbOutput() {
         QString o = jdbProcess->readAllStandardOutput(); jdbBuffer += o; jdbOutput->append(o.trimmed());
         if (!jdbBuffer.contains('\n')) return;
-        static QRegularExpression re("Breakpoint hit:.*thread=(\\S+).*,\\s+(\\S+)\\.\\w+\\(.*\\),\\s+line=(\\d+)");
+        // REGEX GÜNCELLENDİ: Virgüllü sayıları yakalamak için [\\d,]+ kullanıyoruz
+        static QRegularExpression re("Breakpoint hit:.*thread=(\\S+).*,\\s+(\\S+)\\.\\w+\\(.*\\),\\s+line=([\\d,]+)");
         QRegularExpressionMatch m = re.match(jdbBuffer);
         if (m.hasMatch()) {
-            hitFilePath = findPathFromClass(m.captured(2).trimmed()); hitLine = m.captured(3).toInt();
+            hitFilePath = findPathFromClass(m.captured(2).trimmed()); 
+            
+            // VİRGÜL TEMİZLİĞİ: "1,040" -> "1040"
+            QString lineStr = m.captured(3).trimmed();
+            lineStr.remove(','); 
+            hitLine = lineStr.toInt();
+
             jdbBuffer.clear();
             QTimer::singleShot(0, this, [this](){
                 if (!hitFilePath.isEmpty()) {
@@ -400,19 +372,28 @@ private slots:
     }
 
     void startProcesses() {
+        if (projectPaths.isEmpty()) return;
         javaProcess = new QProcess(this);
-        javaProcess->start("java", QStringList() << "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=9009" << "-cp" << projectPath + "/target/classes" << "com.tspb.Main");
+        javaProcess->start("java", QStringList() << "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=9009" << "-cp" << projectPaths[0] + "/target/classes" << "com.tspb.Main");
         jdbProcess = new QProcess(this);
         jdbProcess->start("jdb", QStringList() << "-attach" << "9009");
         connect(jdbProcess, &QProcess::readyReadStandardOutput, this, &JavaMonitorGUI::handleJdbOutput);
     }
 
-    QString deriveClassName(QString p) { int i = p.indexOf("src/main/java/"); return (i == -1) ? QFileInfo(p).baseName() : p.mid(i + 14).replace(".java", "").replace("/", "."); }
+    QString deriveClassName(QString p) { 
+        int i = p.indexOf("src/main/java/"); 
+        return (i == -1) ? QFileInfo(p).baseName() : p.mid(i + 14).replace(".java", "").replace("/", "."); 
+    }
+    
     QString findPathFromClass(QString c) {
         QString r = c.replace(".", "/") + ".java";
-        QDirIterator it(projectPath, QStringList() << "*.java", QDir::Files, QDirIterator::Subdirectories);
-        while (it.hasNext()) { QString p = it.next(); if (p.endsWith(r)) return p; } return "";
+        for (const QString &path : projectPaths) {
+            QDirIterator it(path, QStringList() << "*.java", QDir::Files, QDirIterator::Subdirectories);
+            while (it.hasNext()) { QString p = it.next(); if (p.endsWith(r)) return p; }
+        }
+        return "";
     }
+    
     void buildTree(const QString &p, QStandardItem *it) {
         QDir d(p);
         for (QString dr : d.entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
@@ -425,25 +406,20 @@ private slots:
     }
 
 private:
-    QFrame *customTitleBar;
-    QLabel *titleLabel; 
-    QStandardItemModel *treeModel;
-    JavaProjectProxy *proxyModel;
-    QTreeView *tree;
-    CodeEditor *viewer;
-    QLineEdit *searchBar, *editorSearch;
-    QTextEdit *jdbOutput;
+    QFrame *customTitleBar; QLabel *titleLabel; QStandardItemModel *treeModel; JavaProjectProxy *proxyModel;
+    QTreeView *tree; CodeEditor *viewer; QLineEdit *searchBar, *editorSearch; QTextEdit *jdbOutput;
     QProcess *javaProcess = nullptr, *jdbProcess = nullptr;
-    QString projectPath, currentFilePath, hitFilePath;
-    int hitLine = -1;
-    std::map<QString, std::set<int>> fileBreakpoints;
-    QString jdbBuffer;
+    QStringList projectPaths; QString currentFilePath, hitFilePath, jdbBuffer;
+    int hitLine = -1; std::map<QString, std::set<int>> fileBreakpoints;
 };
 
 #include "main.moc"
 int main(int argc, char *argv[]) {
     QApplication a(argc, argv);
-    JavaMonitorGUI w((argc > 1) ? argv[1] : QDir::currentPath());
+    QStringList paths;
+    if (argc > 1) { for (int i = 1; i < argc; ++i) paths << argv[i]; } 
+    else { paths << QDir::currentPath(); }
+    JavaMonitorGUI w(paths);
     w.show();
     return a.exec();
 }
