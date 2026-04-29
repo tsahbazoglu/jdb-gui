@@ -75,68 +75,66 @@ public:
     }
 
 private slots:
-    void bringToFrontWayland() {
-    if (windowHandle()) {
-        // 1. If minimized, we MUST restore it first
+void bringToFrontWayland() {
+    // ONLY splash if the app doesn't have focus
+    if (windowHandle() && !this->isActiveWindow()) {
+        
         if (isMinimized()) {
             showNormal();
         }
 
-        // 2. THE FORCE: We briefly hide the window to break the compositor's 
-        // focus-lock on the browser, then set the "Top" layer flag.
+        // Force Layer Shift
         this->hide(); 
-        
         windowHandle()->setFlag(Qt::WindowStaysOnTopHint, true);
-        
-        // 3. Re-show. On Wayland, a newly shown 'StaysOnTop' window 
-        // is almost always granted the top-level Z-order.
         this->show();
         this->raise();
 
-        // 4. Cleanup: Remove the "Sticky" behavior after 2 seconds
         QTimer::singleShot(2000, this, [this]() {
             if (windowHandle()) {
                 windowHandle()->setFlag(Qt::WindowStaysOnTopHint, false);
-                // We do NOT call hide/show here, just drop the priority 
-                // so the user can go back to the browser if they want.
                 this->raise(); 
             }
         });
+    } else {
+        // If we already have focus, just do a standard raise to be safe 
+        // without the flickering hide/show.
+        this->raise();
     }
 }
 
-    void handleJdbOutput() {
-        QString o = jdbProcess->readAllStandardOutput();
-        jdbBuffer += o;
-        jdbOutput->append(o.trimmed());
+void handleJdbOutput() {
+    QString o = jdbProcess->readAllStandardOutput();
+    jdbBuffer += o;
+    jdbOutput->append(o.trimmed());
 
-        static QRegularExpression re("(?:Breakpoint hit|Step completed):.*thread=.*?,\\s+(\\S+)\\.\\w+\\(.*\\),\\s+line=([\\d,]+)");
-        QRegularExpressionMatch m = re.match(jdbBuffer);
+    static QRegularExpression re("(?:Breakpoint hit|Step completed):.*thread=.*?,\\s+(\\S+)\\.\\w+\\(.*\\),\\s+line=([\\d,]+)");
+    QRegularExpressionMatch m = re.match(jdbBuffer);
+    
+    if (m.hasMatch()) {
+        bool isBreakpoint = jdbBuffer.contains("Breakpoint hit"); // Check if it's a real hit
         
-        if (m.hasMatch()) {
-            QString className = m.captured(1);
-            hitLine = m.captured(2).remove(',').toInt();
-            hitFilePath = findPathFromClass(className);
-            jdbBuffer.clear();
+        QString className = m.captured(1);
+        hitLine = m.captured(2).remove(',').toInt();
+        hitFilePath = findPathFromClass(className);
+        jdbBuffer.clear();
 
-            if (!hitFilePath.isEmpty()) {
-                openFile(hitFilePath);
-                QTextBlock b = viewer->document()->findBlockByLineNumber(hitLine - 1);
-                if (b.isValid()) { 
-                    viewer->setTextCursor(QTextCursor(b)); 
-                    viewer->ensureCursorVisible(); 
-                }
-                applyVisualBreakpoints();
-                
-                // Small delay to ensure the UI has finished rendering the new file
-                // before we attempt the layer shift.
+        if (!hitFilePath.isEmpty()) {
+            openFile(hitFilePath);
+            QTextBlock b = viewer->document()->findBlockByLineNumber(hitLine - 1);
+            if (b.isValid()) { 
+                viewer->setTextCursor(QTextCursor(b)); 
+                viewer->ensureCursorVisible(); 
+            }
+            applyVisualBreakpoints();
+            
+            // ONLY bring to front if it was a Breakpoint Hit (surprise)
+            // If it was just a "Step completed" (you clicked Next), don't splash.
+            if (isBreakpoint) {
                 QTimer::singleShot(100, this, &JavaMonitorGUI::bringToFrontWayland);
             }
-        } else if (jdbBuffer.length() > 5000) {
-            jdbBuffer.clear(); 
         }
     }
-
+}
     void onSaveClicked() {
         bool ok; QString name = QInputDialog::getText(this, "Save Phase", "Name:", QLineEdit::Normal, currentGroupName, &ok);
         if (ok && !name.isEmpty()) {
