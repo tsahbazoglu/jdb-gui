@@ -33,6 +33,20 @@
 #include <set>
 #include <cmath>
 
+// --- 1. THEME STRUCTURE ---
+struct HawkTheme {
+    QString mainBg;
+    QString sidebarBg;
+    QString textColor;
+    QString editorBg;
+    QString buttonBg;
+    QString secondaryText;
+};
+
+const HawkTheme DARK_THEME = {"#1e1e1e", "#252526", "#d4d4d4", "#1e1e1e", "#333333", "#858585"};
+const HawkTheme LIGHT_THEME = {"#ffffff", "#f3f3f3", "#000000", "#ffffff", "#e0e0e0", "#555555"};
+
+// --- 2. PROXY MODEL ---
 class JavaProjectProxy : public QSortFilterProxyModel {
     Q_OBJECT
 public:
@@ -48,15 +62,16 @@ protected:
     }
 };
 
+// --- 3. EDITOR ---
 class CodeEditor : public QPlainTextEdit {
 public:
     CodeEditor(QWidget *parent = nullptr) : QPlainTextEdit(parent) {
         setReadOnly(true);
         setLineWrapMode(QPlainTextEdit::NoWrap);
-        setStyleSheet("background-color: #1e1e1e; color: #d4d4d4; font-family: 'JetBrains Mono', 'Monospace'; font-size: 11pt; border: none;");
     }
 };
 
+// --- 4. MAIN GUI ---
 class JavaMonitorGUI : public QMainWindow {
     Q_OBJECT
 public:
@@ -65,76 +80,96 @@ public:
         setWindowTitle("🦅 Hawk Debugger [WAYLAND FORCE]");
         resize(1350, 850);
         setupUI();
-        loadGroupsFromFile();
         
+        isDarkMode = true; 
+        applyTheme(DARK_THEME); 
+
+        loadGroupsFromFile();
         healthTimer = new QTimer(this);
         connect(healthTimer, &QTimer::timeout, this, &JavaMonitorGUI::runHealthPulse);
         healthTimer->start(50);
-
         QTimer::singleShot(500, this, &JavaMonitorGUI::startProcesses);
     }
 
 private slots:
-void bringToFrontWayland() {
-    // ONLY splash if the app doesn't have focus
-    if (windowHandle() && !this->isActiveWindow()) {
-        
-        if (isMinimized()) {
-            showNormal();
-        }
-
-        // Force Layer Shift
-        this->hide(); 
-        windowHandle()->setFlag(Qt::WindowStaysOnTopHint, true);
-        this->show();
-        this->raise();
-
-        QTimer::singleShot(2000, this, [this]() {
-            if (windowHandle()) {
-                windowHandle()->setFlag(Qt::WindowStaysOnTopHint, false);
-                this->raise(); 
-            }
-        });
-    } else {
-        // If we already have focus, just do a standard raise to be safe 
-        // without the flickering hide/show.
-        this->raise();
+    void toggleTheme() {
+        isDarkMode = !isDarkMode;
+        applyTheme(isDarkMode ? DARK_THEME : LIGHT_THEME);
     }
-}
 
-void handleJdbOutput() {
-    QString o = jdbProcess->readAllStandardOutput();
-    jdbBuffer += o;
-    jdbOutput->append(o.trimmed());
-
-    static QRegularExpression re("(?:Breakpoint hit|Step completed):.*thread=.*?,\\s+(\\S+)\\.\\w+\\(.*\\),\\s+line=([\\d,]+)");
-    QRegularExpressionMatch m = re.match(jdbBuffer);
-    
-    if (m.hasMatch()) {
-        bool isBreakpoint = jdbBuffer.contains("Breakpoint hit"); // Check if it's a real hit
+    void applyTheme(const HawkTheme &t) {
+        this->setStyleSheet(QString("QMainWindow { background-color: %1; color: %2; }").arg(t.mainBg).arg(t.textColor));
         
-        QString className = m.captured(1);
-        hitLine = m.captured(2).remove(',').toInt();
-        hitFilePath = findPathFromClass(className);
-        jdbBuffer.clear();
+        QString treeStyle = QString(
+            "QTreeView { background: %1; color: %2; border: none; outline: none; } "
+            "QTreeView::item:selected { background: #007acc; color: white; }"
+        ).arg(t.sidebarBg).arg(t.textColor);
+        tree->setStyleSheet(treeStyle);
 
-        if (!hitFilePath.isEmpty()) {
-            openFile(hitFilePath);
-            QTextBlock b = viewer->document()->findBlockByLineNumber(hitLine - 1);
-            if (b.isValid()) { 
-                viewer->setTextCursor(QTextCursor(b)); 
-                viewer->ensureCursorVisible(); 
-            }
-            applyVisualBreakpoints();
-            
-            // ONLY bring to front if it was a Breakpoint Hit (surprise)
-            // If it was just a "Step completed" (you clicked Next), don't splash.
-            if (isBreakpoint) {
-                QTimer::singleShot(100, this, &JavaMonitorGUI::bringToFrontWayland);
-            }
+        QString inputStyle = QString(
+            "background: %1; color: %2; padding: 5px; border: 1px solid %3; border-radius: 2px;"
+        ).arg(t.sidebarBg).arg(t.textColor).arg(isDarkMode ? "#333" : "#bbb");
+        searchBar->setStyleSheet(inputStyle);
+        editorSearch->setStyleSheet(inputStyle);
+
+        // Editor styling: Force background, text color, and viewport
+        viewer->setStyleSheet(QString(
+            "QPlainTextEdit { background-color: %1; color: %2; font-family: 'JetBrains Mono', 'Monospace'; font-size: 11pt; border: none; }"
+        ).arg(t.editorBg).arg(t.textColor));
+        viewer->viewport()->setStyleSheet(QString("background-color: %1;").arg(t.editorBg));
+
+        jdbOutput->setStyleSheet(isDarkMode 
+            ? "background: #000; color: #0f9; font-family: monospace; border: none;" 
+            : "background: #fdfdfd; color: #000; font-family: monospace; border: 1px solid #ccc;");
+
+        btnTheme->setText(isDarkMode ? "☀️ LIGHT" : "🌙 DARK");
+        btnTheme->setStyleSheet(QString(
+            "QPushButton { background: %1; color: %2; font-weight: bold; font-size: 10px; border: 1px solid %3; border-radius: 2px; height: 26px; }"
+        ).arg(isDarkMode ? "#444" : "#eee")
+         .arg(isDarkMode ? "white" : "black")
+         .arg(isDarkMode ? "#555" : "#ccc"));
+    }
+
+    void bringToFrontWayland() {
+        if (windowHandle() && !this->isActiveWindow()) {
+            if (isMinimized()) showNormal();
+            this->hide(); 
+            windowHandle()->setFlag(Qt::WindowStaysOnTopHint, true);
+            this->show();
+            this->raise();
+            QTimer::singleShot(2000, this, [this]() {
+                if (windowHandle()) {
+                    windowHandle()->setFlag(Qt::WindowStaysOnTopHint, false);
+                    this->raise(); 
+                }
+            });
+        } else {
+            this->raise();
         }
     }
-}
+
+    void handleJdbOutput() {
+        QString o = jdbProcess->readAllStandardOutput();
+        jdbBuffer += o;
+        jdbOutput->append(o.trimmed());
+        static QRegularExpression re("(?:Breakpoint hit|Step completed):.*thread=.*?,\\s+(\\S+)\\.\\w+\\(.*\\),\\s+line=([\\d,]+)");
+        QRegularExpressionMatch m = re.match(jdbBuffer);
+        if (m.hasMatch()) {
+            bool isBreakpoint = jdbBuffer.contains("Breakpoint hit");
+            QString className = m.captured(1);
+            hitLine = m.captured(2).remove(',').toInt();
+            hitFilePath = findPathFromClass(className);
+            jdbBuffer.clear();
+            if (!hitFilePath.isEmpty()) {
+                openFile(hitFilePath);
+                QTextBlock b = viewer->document()->findBlockByLineNumber(hitLine - 1);
+                if (b.isValid()) { viewer->setTextCursor(QTextCursor(b)); viewer->ensureCursorVisible(); }
+                applyVisualBreakpoints();
+                if (isBreakpoint) QTimer::singleShot(100, this, &JavaMonitorGUI::bringToFrontWayland);
+            }
+        }
+    }
+
     void onSaveClicked() {
         bool ok; QString name = QInputDialog::getText(this, "Save Phase", "Name:", QLineEdit::Normal, currentGroupName, &ok);
         if (ok && !name.isEmpty()) {
@@ -193,9 +228,16 @@ void handleJdbOutput() {
     void runHealthPulse() {
         if (!healthEnabled) return;
         colorStep += 0.02f;
-        int r = 28 + static_cast<int>(10 * std::cos(colorStep));
-        int g = 32 + static_cast<int>(10 * std::sin(colorStep));
-        viewer->viewport()->setStyleSheet(QString("background-color: rgb(%1, %2, %3);").arg(r).arg(g).arg(32));
+        int pulse = static_cast<int>(10 * std::cos(colorStep));
+
+        if (isDarkMode) {
+            int r = 28 + pulse;
+            int g = 32 + pulse;
+            viewer->viewport()->setStyleSheet(QString("background-color: rgb(%1, %2, 32);").arg(r).arg(g));
+        } else {
+            int val = 245 + pulse;
+            viewer->viewport()->setStyleSheet(QString("background-color: rgb(%1, %1, %1);").arg(val));
+        }
     }
 
 private:
@@ -204,7 +246,6 @@ private:
         QVBoxLayout *mainLayout = new QVBoxLayout(central);
         QSplitter *split = new QSplitter(Qt::Horizontal);
 
-        // SIDEBAR
         QWidget *left = new QWidget();
         QVBoxLayout *lbox = new QVBoxLayout(left);
         lbox->setContentsMargins(0,0,0,0);
@@ -225,7 +266,6 @@ private:
         tree->setHeaderHidden(true);
         lbox->addWidget(searchBar); lbox->addWidget(tree);
 
-        // EDITOR
         QWidget *right = new QWidget();
         QVBoxLayout *rbox = new QVBoxLayout(right);
         rbox->setContentsMargins(0,0,0,0);
@@ -235,9 +275,7 @@ private:
         jdbOutput = new QTextEdit();
         jdbOutput->setFixedHeight(150);
         jdbOutput->setReadOnly(true);
-        jdbOutput->setStyleSheet("background: #000; color: #0f9; font-family: monospace;");
 
-        // BUTTONS
         QHBoxLayout *btnBar = new QHBoxLayout();
         btnBar->setContentsMargins(5,5,5,5); btnBar->setSpacing(4);
         auto createBtn = [&](QString txt, QString col, int w = 75) {
@@ -256,6 +294,8 @@ private:
         QPushButton *btnThreads = createBtn("THREADS", "#4a1a4a");
         QPushButton *btnPrint = createBtn("PRINT", "#2a5a2a");
         btnHealth = createBtn("EYE: ON", "#2a5a5a", 100);
+        btnTheme = createBtn("", "#444", 80);
+        
         groupCombo = new QComboBox();
         groupCombo->setFixedWidth(140);
         QPushButton *btnSave = createBtn("💾 SAVE", "#444", 60);
@@ -263,6 +303,7 @@ private:
         btnBar->addWidget(btnBP); btnBar->addWidget(btnNext); btnBar->addWidget(btnCont);
         btnBar->addWidget(btnStep); btnBar->addWidget(btnLocals); btnBar->addWidget(btnStack);
         btnBar->addWidget(btnThreads); btnBar->addWidget(btnPrint); btnBar->addWidget(btnHealth);
+        btnBar->addWidget(btnTheme);
         btnBar->addStretch(); btnBar->addWidget(new QLabel("PHASE:")); btnBar->addWidget(groupCombo);
         btnBar->addWidget(btnSave);
 
@@ -281,10 +322,15 @@ private:
         connect(btnThreads, &QPushButton::clicked, this, [this](){ jdbProcess->write("threads\n"); });
         connect(btnPrint, &QPushButton::clicked, this, [this](){ bool ok; QString v = QInputDialog::getText(this, "Print", "Var:", QLineEdit::Normal, "", &ok); if(ok) jdbProcess->write(QString("print %1\n").arg(v).toUtf8()); });
         connect(btnSave, &QPushButton::clicked, this, &JavaMonitorGUI::onSaveClicked);
-        connect(btnHealth, &QPushButton::clicked, this, [this](){ healthEnabled = !healthEnabled; btnHealth->setText(healthEnabled ? "EYE: ON" : "EYE: OFF"); if(!healthEnabled) viewer->viewport()->setStyleSheet("background-color: #1e1e1e;"); });
+        connect(btnHealth, &QPushButton::clicked, this, [this](){ 
+            healthEnabled = !healthEnabled; 
+            btnHealth->setText(healthEnabled ? "EYE: ON" : "EYE: OFF"); 
+            if(!healthEnabled) viewer->viewport()->setStyleSheet(QString("background-color: %1;").arg(isDarkMode ? "#1e1e1e" : "#ffffff"));
+        });
         connect(searchBar, &QLineEdit::textChanged, this, [this](const QString &t){ proxyModel->setFilterRegularExpression(t); tree->expandAll(); });
         connect(editorSearch, &QLineEdit::textChanged, this, &JavaMonitorGUI::onEditorSearch);
         connect(groupCombo, &QComboBox::currentTextChanged, this, &JavaMonitorGUI::onGroupChanged);
+        connect(btnTheme, &QPushButton::clicked, this, &JavaMonitorGUI::toggleTheme);
     }
 
     void openFile(QString p) { if (p.isEmpty() || !QFileInfo(p).isFile()) return; currentFilePath = p; QFile f(p); if (f.open(QIODevice::ReadOnly)) { viewer->setPlainText(f.readAll()); applyVisualBreakpoints(); } }
@@ -359,15 +405,13 @@ private:
     QTreeView *tree; CodeEditor *viewer; QLineEdit *searchBar, *editorSearch; QTextEdit *jdbOutput;
     QProcess *javaProcess = nullptr, *jdbProcess = nullptr; QStringList projectPaths;
     QString currentFilePath, hitFilePath, jdbBuffer; JavaProjectProxy *proxyModel; QStandardItemModel *treeModel;
-    int hitLine = -1; QString currentGroupName; QComboBox *groupCombo; QPushButton *btnHealth;
+    int hitLine = -1; QString currentGroupName; QComboBox *groupCombo; QPushButton *btnHealth, *btnTheme;
     std::map<QString, std::map<QString, std::set<int>>> breakpointGroups;
-    QTimer *healthTimer; float colorStep = 0.0f; bool healthEnabled = true;
+    QTimer *healthTimer; float colorStep = 0.0f; bool healthEnabled = true, isDarkMode = true;
 };
 
 int main(int argc, char *argv[]) {
-    // FORCE NATIVE WAYLAND
     qputenv("QT_QPA_PLATFORM", "wayland");
-    
     QApplication a(argc, argv);
     QStringList paths;
     if (argc > 1) { for (int i = 1; i < argc; ++i) paths << argv[i]; } 
