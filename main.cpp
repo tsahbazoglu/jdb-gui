@@ -161,9 +161,14 @@ private slots:
             hitFilePath = findPathFromClass(className);
             jdbBuffer.clear();
             if (!hitFilePath.isEmpty()) {
-                openFile(hitFilePath);
+                if (currentFilePath != hitFilePath) {
+                    openFile(hitFilePath);
+                }
                 QTextBlock b = viewer->document()->findBlockByLineNumber(hitLine - 1);
-                if (b.isValid()) { viewer->setTextCursor(QTextCursor(b)); viewer->ensureCursorVisible(); }
+                if (b.isValid()) {
+                    viewer->setTextCursor(QTextCursor(b));
+                    viewer->ensureCursorVisible();
+                }
                 applyVisualBreakpoints();
                 if (isBreakpoint) QTimer::singleShot(100, this, &JavaMonitorGUI::bringToFrontWayland);
             }
