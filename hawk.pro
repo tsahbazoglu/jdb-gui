@@ -1,7 +1,7 @@
 QT += widgets
 
 TEMPLATE = app
-TARGET = myide
+TARGET = hawk
 INCLUDEPATH += .
 
 # Only include the GUI main.cpp

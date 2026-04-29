@@ -33,12 +33,33 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QStyledItemDelegate>
+#include <QAbstractItemView>
 #include <iostream>
 #include <set>
 #include <map>
 #include <cmath>
 
-// --- Code Editor with Line Numbers ---
+const QString BG_MAIN = "#1e1e1e";
+const QString BG_SIDEBAR = "#252526";
+const QString BORDER_COLOR = "#333333";
+const QString ACCENT_BLUE = "#007acc";
+
+class JavaProjectProxy : public QSortFilterProxyModel {
+    Q_OBJECT
+public:
+    JavaProjectProxy(QObject *parent = nullptr) : QSortFilterProxyModel(parent) {}
+protected:
+    bool filterAcceptsRow(int source_row, const QModelIndex &source_parent) const override {
+        QModelIndex index = sourceModel()->index(source_row, 0, source_parent);
+        if (sourceModel()->data(index).toString().contains(filterRegularExpression().pattern(), Qt::CaseInsensitive)) return true;
+        for (int i = 0; i < sourceModel()->rowCount(index); ++i) {
+            if (filterAcceptsRow(i, index)) return true;
+        }
+        return false;
+    }
+};
+
 class CodeEditor : public QPlainTextEdit {
     Q_OBJECT
 public:
@@ -50,11 +71,11 @@ public:
         updateLineNumberAreaWidth(0);
         setReadOnly(true);
         setLineWrapMode(QPlainTextEdit::NoWrap);
-        setStyleSheet("background-color: #1e1e1e; color: #d4d4d4; font-family: 'Monospace'; font-size: 12pt;");
+        setStyleSheet("background-color: #1e1e1e; color: #d4d4d4; font-family: 'JetBrains Mono', 'Monospace'; font-size: 12pt; border: none;");
     }
     void lineNumberAreaPaintEvent(QPaintEvent *event) {
         QPainter painter(lineNumberArea);
-        painter.fillRect(event->rect(), QColor("#2b2b2b"));
+        painter.fillRect(event->rect(), QColor("#1e1e1e"));
         QTextBlock block = firstVisibleBlock();
         int blockNumber = block.blockNumber();
         int top = qRound(blockBoundingGeometry(block).translated(contentOffset()).top());
@@ -65,23 +86,18 @@ public:
                 painter.setPen(QColor("#858585"));
                 painter.drawText(0, top, lineNumberArea->width() - 5, fontMetrics().height(), Qt::AlignRight, number);
             }
-            block = block.next();
-            top = bottom;
-            bottom = top + qRound(blockBoundingRect(block).height());
-            ++blockNumber;
+            block = block.next(); top = bottom; bottom = top + qRound(blockBoundingRect(block).height()); ++blockNumber;
         }
     }
     int lineNumberAreaWidth() {
-        int digits = 1;
-        int max = qMax(1, blockCount());
+        int digits = 1; int max = qMax(1, blockCount());
         while (max >= 10) { max /= 10; digits++; }
-        return 15 + fontMetrics().horizontalAdvance(QLatin1Char('9')) * digits;
+        return 20 + fontMetrics().horizontalAdvance(QLatin1Char('9')) * digits;
     }
 protected:
     void resizeEvent(QResizeEvent *event) override {
         QPlainTextEdit::resizeEvent(event);
-        QRect cr = contentsRect();
-        lineNumberArea->setGeometry(QRect(cr.left(), cr.top(), lineNumberAreaWidth(), cr.bottom()));
+        lineNumberArea->setGeometry(QRect(contentsRect().left(), contentsRect().top(), lineNumberAreaWidth(), contentsRect().bottom()));
     }
 public slots: void highlightCurrentLine() { emit requestHighlightSync(); }
 signals: void requestHighlightSync();
@@ -90,7 +106,6 @@ private slots:
     void updateLineNumberArea(const QRect &rect, int dy) {
         if (dy) lineNumberArea->scroll(0, dy);
         else lineNumberArea->update(0, rect.y(), lineNumberArea->width(), rect.height());
-        if (rect.contains(viewport()->rect())) updateLineNumberAreaWidth(0);
     }
 private:
     class LineNumberArea : public QWidget {
@@ -104,31 +119,34 @@ private:
     QWidget *lineNumberArea;
 };
 
-// --- Main GUI ---
 class JavaMonitorGUI : public QMainWindow {
     Q_OBJECT
-
 public:
     JavaMonitorGUI(QStringList paths) {
         projectPaths = paths;
         currentGroupName = "Default";
         setWindowFlags(Qt::FramelessWindowHint | Qt::WindowSystemMenuHint);
         resize(1300, 850);
+        setWindowTitle("Hawk Java Debugger");
+        setStyleSheet(QString("QMainWindow { background-color: %1; color: #ccc; }").arg(BG_MAIN));
 
         customTitleBar = new QFrame();
-        customTitleBar->setFixedHeight(40);
-        customTitleBar->setStyleSheet("background-color: #252525; border-bottom: 1px solid #3d3d3d;");
-        titleLabel = new QLabel(" ☕ Java Monitor [STABLE BUILD]");
-        titleLabel->setStyleSheet("color: #999; font-weight: bold;");
+        customTitleBar->setFixedHeight(32);
+        customTitleBar->setStyleSheet(QString("background-color: %1; border-bottom: 1px solid %2;").arg(BG_SIDEBAR).arg(BORDER_COLOR));
+        titleLabel = new QLabel("  🦅  <b>HAWK PRO</b> [STABLE]");
+        titleLabel->setStyleSheet("color: #999; font-weight: bold; font-size: 11px;");
 
+        QPushButton *btnMin = new QPushButton("—");
+        QPushButton *btnMax = new QPushButton("⬜");
         QPushButton *btnClose = new QPushButton("✕");
-        QString ctrlStyle = "QPushButton { background: transparent; color: #aaa; border: none; width: 45px; height: 40px; font-size: 14px; } QPushButton:hover { background: #e81123; color: white; }";
-        btnClose->setStyleSheet(ctrlStyle);
+        QString tBtnStyle = "QPushButton { border:none; color: white; width: 45px; height: 32px; } QPushButton:hover { background-color: #444; }";
+        btnMin->setStyleSheet(tBtnStyle); btnMax->setStyleSheet(tBtnStyle);
+        btnClose->setStyleSheet("QPushButton { border:none; color: white; width: 45px; height: 32px; } QPushButton:hover { background-color: #e81123; }");
 
         QHBoxLayout *titleLayout = new QHBoxLayout(customTitleBar);
-        titleLayout->setContentsMargins(10, 0, 0, 0);
+        titleLayout->setContentsMargins(10, 0, 0, 0); titleLayout->setSpacing(0);
         titleLayout->addWidget(titleLabel); titleLayout->addStretch();
-        titleLayout->addWidget(btnClose);
+        titleLayout->addWidget(btnMin); titleLayout->addWidget(btnMax); titleLayout->addWidget(btnClose);
 
         customTitleBar->installEventFilter(this);
         titleLabel->installEventFilter(this);
@@ -141,80 +159,80 @@ public:
             treeModel->invisibleRootItem()->appendRow(rootItem);
             buildTree(abs, rootItem);
         }
-
-        QSortFilterProxyModel *proxy = new QSortFilterProxyModel(this);
-        proxy->setSourceModel(treeModel);
+        proxyModel = new JavaProjectProxy(this);
+        proxyModel->setSourceModel(treeModel);
 
         searchBar = new QLineEdit();
-        searchBar->setPlaceholderText("Teleport search...");
+        searchBar->setPlaceholderText(" 🔍 Teleport search...");
+        searchBar->setStyleSheet("background: #252526; border: none; border-bottom: 1px solid #333; color: #ccc; padding: 8px;");
+
         tree = new QTreeView();
-        tree->setModel(proxy);
-        tree->header()->hide();
+        tree->setModel(proxyModel);
+        tree->setHeaderHidden(true);
+        tree->setStyleSheet(QString("QTreeView { background: %1; border: none; color: #bbb; outline: none; } QTreeView::item:selected { background: %2; color: white; }").arg(BG_SIDEBAR).arg(ACCENT_BLUE));
+        
         viewer = new CodeEditor();
-
         editorSearch = new QLineEdit();
-        editorSearch->setPlaceholderText("🔍 Search in file...");
-        editorSearch->setStyleSheet("background-color: #2b2b2b; color: #d4d4d4; padding: 6px; border: 1px solid #555;");
+        editorSearch->setPlaceholderText(" 🔍 Search in current file...");
+        editorSearch->setStyleSheet("background: #252526; border: none; border-bottom: 1px solid #333; color: #ccc; padding: 8px;");
 
-        // JDB Buttons
-        QPushButton *btnBP = new QPushButton("🔴 BP");
-        QPushButton *btnNext = new QPushButton("⏭ Next");
-        QPushButton *btnStop = new QPushButton("▶ Cont");
-        QPushButton *btnStep = new QPushButton("⬇ Step");
-        QPushButton *btnOut = new QPushButton("⬆ Out");
-        QPushButton *btnLocals = new QPushButton("📋 Locals");
-        QPushButton *btnStack = new QPushButton("📚 Stack");
-        QPushButton *btnThreads = new QPushButton("🧵 Threads");
-        QPushButton *btnWhere = new QPushButton("📍 Where");
-        QPushButton *btnExit = new QPushButton("⏹ Exit");
-        QPushButton *btnPrint = new QPushButton("🔎 Print");
-        QPushButton *btnPrintD = new QPushButton("🔎 Dump");
-        btnHealth = new QPushButton("🛡 Eye: ON");
+        auto createStyledBtn = [&](QString txt, QString bgCol) {
+            QPushButton *b = new QPushButton(txt);
+            b->setFixedSize(75, 26);
+            b->setStyleSheet(QString("QPushButton { background: %1; border: 1px solid #444; border-radius: 2px; color: white; font-weight: bold; font-size: 10px; } QPushButton:hover { background: #555; }").arg(bgCol));
+            return b;
+        };
+
+        QPushButton *btnBP = createStyledBtn("🔴 BP", "#7a1a1a");
+        QPushButton *btnNext = createStyledBtn("NEXT", "#1a4a7a");
+        QPushButton *btnStop = createStyledBtn("RESUME", "#1a7a1a");
+        QPushButton *btnStep = createStyledBtn("STEP", "#1a5a5a");
+        QPushButton *btnOut = createStyledBtn("OUT", "#5a1a7a");
+        QPushButton *btnLocals = createStyledBtn("LOCALS", "#4a4a1a");
+        QPushButton *btnStack = createStyledBtn("STACK", "#1a4a4a");
+        QPushButton *btnThreads = createStyledBtn("THREADS", "#4a1a4a");
+        QPushButton *btnWhere = createStyledBtn("WHERE", "#2a2a5a");
+        QPushButton *btnExit = createStyledBtn("EXIT", "#3a3a3a");
+        QPushButton *btnPrint = createStyledBtn("PRINT", "#2a5a2a");
+        QPushButton *btnPrintD = createStyledBtn("DUMP", "#2a5a2a");
+        btnHealth = createStyledBtn("EYE: ON", "#2a5a5a");
+        btnHealth->setFixedWidth(100);
         
         groupCombo = new QComboBox();
         groupCombo->addItem("Default");
-        groupCombo->setStyleSheet("background: #333; color: #fff; padding: 4px; border: 1px solid #555; min-width: 120px;");
+        groupCombo->setFixedSize(140, 26);
+        groupCombo->setItemDelegate(new QStyledItemDelegate(groupCombo));
+        groupCombo->setStyleSheet("QComboBox { background: #333; border: 1px solid #555; color: #fff; padding-left: 5px; font-size: 11px; } QComboBox QAbstractItemView { background-color: #252526 !important; color: #ffffff !important; selection-background-color: #007acc; border: 1px solid #333; }");
 
-        btnSaveGroup = new QPushButton("💾 SAVE");
-        btnSaveGroup->setStyleSheet("background: #444; color: #00ff99; font-weight: bold; padding: 4px;");
-
-        QString bStyle = "color: white; font-weight: bold; padding: 6px;";
-        btnBP->setStyleSheet("background-color: #7a1a1a; " + bStyle);
-        btnNext->setStyleSheet("background-color: #1a4a7a; " + bStyle);
-        btnStop->setStyleSheet("background-color: #1a7a1a; " + bStyle);
-        btnStep->setStyleSheet("background-color: #1a5a5a; " + bStyle);
-        btnOut->setStyleSheet("background-color: #5a1a7a; " + bStyle);
-        btnLocals->setStyleSheet("background-color: #4a4a1a; " + bStyle);
-        btnStack->setStyleSheet("background-color: #1a4a4a; " + bStyle);
-        btnThreads->setStyleSheet("background-color: #4a1a4a; " + bStyle);
-        btnWhere->setStyleSheet("background-color: #2a2a5a; " + bStyle);
-        btnExit->setStyleSheet("background-color: #3a3a3a; " + bStyle);
-        btnPrint->setStyleSheet("background-color: #2a5a2a; " + bStyle);
-        btnPrintD->setStyleSheet("background-color: #2a5a2a; " + bStyle);
-        btnHealth->setStyleSheet("background-color: #2a5a5a; " + bStyle);
+        btnSaveGroup = createStyledBtn("💾 SAVE", "#444");
+        btnSaveGroup->setFixedWidth(60);
 
         QSplitter *split = new QSplitter(Qt::Horizontal);
+        split->setStyleSheet("QSplitter::handle { background-color: #333; }");
         QWidget *left = new QWidget();
         QVBoxLayout *lbox = new QVBoxLayout(left);
+        lbox->setContentsMargins(0,0,0,0); lbox->setSpacing(0);
         lbox->addWidget(searchBar); lbox->addWidget(tree);
 
         QWidget *right = new QWidget();
         QVBoxLayout *rbox = new QVBoxLayout(right);
+        rbox->setContentsMargins(0,0,0,0); rbox->setSpacing(0);
         QHBoxLayout *btnBar = new QHBoxLayout();
+        btnBar->setContentsMargins(5,5,5,5); btnBar->setSpacing(4);
         btnBar->addWidget(btnBP); btnBar->addWidget(btnNext); btnBar->addWidget(btnStop);
         btnBar->addWidget(btnStep); btnBar->addWidget(btnOut); btnBar->addWidget(btnLocals);
         btnBar->addWidget(btnStack); btnBar->addWidget(btnThreads); btnBar->addWidget(btnWhere);
         btnBar->addWidget(btnExit); btnBar->addWidget(btnPrint); btnBar->addWidget(btnPrintD);
-        btnBar->addWidget(btnHealth); btnBar->addWidget(new QLabel("📦 Phase:")); btnBar->addWidget(groupCombo);
+        btnBar->addWidget(btnHealth); btnBar->addWidget(new QLabel(" PHASE:")); btnBar->addWidget(groupCombo);
         btnBar->addWidget(btnSaveGroup);
 
         jdbOutput = new QTextEdit();
         jdbOutput->setReadOnly(true);
         jdbOutput->setMaximumHeight(150);
-        jdbOutput->setStyleSheet("background-color: #111111; color: #00ff99; font-family: 'Monospace'; border: 1px solid #333;");
+        jdbOutput->setStyleSheet("background-color: #000; color: #00ff99; font-family: 'Monospace'; font-size: 10pt; border: none; border-top: 1px solid #333;");
 
         rbox->addWidget(editorSearch); rbox->addWidget(viewer); rbox->addWidget(jdbOutput); rbox->addLayout(btnBar);
-        split->addWidget(left); split->addWidget(right); split->setStretchFactor(1, 2);
+        split->addWidget(left); split->addWidget(right); split->setStretchFactor(1, 4);
 
         QWidget *central = new QWidget();
         QVBoxLayout *mainLayout = new QVBoxLayout(central);
@@ -222,8 +240,10 @@ public:
         mainLayout->addWidget(customTitleBar); mainLayout->addWidget(split);
         setCentralWidget(central);
 
+        connect(btnMin, &QPushButton::clicked, this, &JavaMonitorGUI::showMinimized);
+        connect(btnMax, &QPushButton::clicked, this, [this]() { if (isMaximized()) showNormal(); else showMaximized(); });
         connect(btnClose, &QPushButton::clicked, this, &JavaMonitorGUI::close);
-        connect(searchBar, &QLineEdit::textChanged, this, [this, proxy](const QString &t){ proxy->setFilterFixedString(t); tree->expandAll(); });
+        connect(searchBar, &QLineEdit::textChanged, this, [this](const QString &t){ proxyModel->setFilterRegularExpression(QRegularExpression(t, QRegularExpression::CaseInsensitiveOption)); if(!t.isEmpty()) tree->expandAll(); else tree->collapseAll(); });
         connect(editorSearch, &QLineEdit::textChanged, this, &JavaMonitorGUI::onEditorSearch);
         connect(tree, &QTreeView::clicked, this, &JavaMonitorGUI::onFileClicked);
         connect(btnBP, &QPushButton::clicked, this, &JavaMonitorGUI::onToggleBreakpoint);
@@ -246,7 +266,6 @@ public:
         healthTimer = new QTimer(this);
         connect(healthTimer, &QTimer::timeout, this, &JavaMonitorGUI::runHealthPulse);
         healthTimer->start(50);
-
         loadGroupsFromFile();
         startProcesses();
     }
@@ -270,38 +289,23 @@ protected:
 
 private slots:
     void onFileClicked(const QModelIndex &i) { openFile(i.data(Qt::UserRole).toString()); }
-
     void handleJdbOutput() {
-        QString o = jdbProcess->readAllStandardOutput(); 
-        jdbBuffer += o; jdbOutput->append(o.trimmed());
+        QString o = jdbProcess->readAllStandardOutput(); jdbBuffer += o; jdbOutput->append(o.trimmed());
         static QRegularExpression re("(?:Breakpoint hit|Step completed):.*thread=.*?,\\s+(\\S+)\\.\\w+\\(.*\\),\\s+line=([\\d,]+)");
         QRegularExpressionMatch m = re.match(jdbBuffer);
         if (m.hasMatch()) {
-            QString className = m.captured(1);
-            hitLine = m.captured(2).remove(',').toInt();
-            hitFilePath = findPathFromClass(className);
-            jdbBuffer.clear();
+            QString className = m.captured(1); hitLine = m.captured(2).remove(',').toInt();
+            hitFilePath = findPathFromClass(className); jdbBuffer.clear();
             if (!hitFilePath.isEmpty()) {
-                QTimer::singleShot(0, this, [this](){ 
-                    openFile(hitFilePath); 
-                    QTextBlock b = viewer->document()->findBlockByLineNumber(hitLine - 1);
-                    if (b.isValid()) { viewer->setTextCursor(QTextCursor(b)); viewer->ensureCursorVisible(); }
-                    applyVisualBreakpoints(); 
-                });
+                QTimer::singleShot(0, this, [this](){ openFile(hitFilePath); QTextBlock b = viewer->document()->findBlockByLineNumber(hitLine - 1); if (b.isValid()) { viewer->setTextCursor(QTextCursor(b)); viewer->ensureCursorVisible(); } applyVisualBreakpoints(); });
             }
         } else if (jdbBuffer.length() > 2000) jdbBuffer.clear();
     }
-
     void onSaveClicked() {
         bool ok; QString name = QInputDialog::getText(this, "Save Phase", "Name:", QLineEdit::Normal, currentGroupName, &ok);
-        if (ok && !name.isEmpty()) {
-            if (name != currentGroupName) { breakpointGroups[name] = breakpointGroups[currentGroupName]; currentGroupName = name; if (groupCombo->findText(name) == -1) groupCombo->addItem(name); groupCombo->setCurrentText(name); }
-            saveGroupsToDisk();
-        }
+        if (ok && !name.isEmpty()) { if (name != currentGroupName) { breakpointGroups[name] = breakpointGroups[currentGroupName]; currentGroupName = name; if (groupCombo->findText(name) == -1) groupCombo->addItem(name); groupCombo->setCurrentText(name); } saveGroupsToDisk(); }
     }
-
     void openFile(QString p) { if (p.isEmpty() || !QFileInfo(p).isFile()) return; currentFilePath = p; QFile f(p); if (f.open(QIODevice::ReadOnly)) { viewer->setPlainText(f.readAll()); applyVisualBreakpoints(); } }
-
     void applyVisualBreakpoints() {
         QList<QTextEdit::ExtraSelection> sel;
         for (int line : breakpointGroups[currentGroupName][currentFilePath]) {
@@ -314,7 +318,6 @@ private slots:
         }
         viewer->setExtraSelections(sel);
     }
-
     QString findPathFromClass(QString c) {
         QString r = c.replace(".", "/") + ".java";
         for (const QString &root : projectPaths) {
@@ -323,7 +326,6 @@ private slots:
         }
         return "";
     }
-
     void onGroupChanged(const QString &newGroup) {
         if (newGroup.isEmpty() || newGroup == currentGroupName || !jdbProcess) return;
         for (auto const& [path, lines] : breakpointGroups[currentGroupName]) {
@@ -335,7 +337,6 @@ private slots:
         }
         applyVisualBreakpoints();
     }
-
     void onToggleBreakpoint() {
         if (currentFilePath.isEmpty()) return;
         int line = viewer->textCursor().blockNumber() + 1;
@@ -344,38 +345,46 @@ private slots:
         if(bps.count(line)) bps.erase(line); else bps.insert(line);
         jdbProcess->write(cmd.toUtf8()); applyVisualBreakpoints();
     }
-
     void runHealthPulse() {
         if (!healthEnabled) return;
         colorStep += 0.02f;
-        int r = 30 + static_cast<int>(12 * std::cos(colorStep));
-        int g = 35 + static_cast<int>(12 * std::sin(colorStep));
-        int textVal = 200 + static_cast<int>(55 * std::cos(colorStep + 3.14f));
-        QString tRGB = (QTime::currentTime().hour() >= 20 || QTime::currentTime().hour() <= 6) ? 
-            QString("rgb(%1, %2, %3)").arg(textVal).arg(textVal-50).arg(textVal-100) : QString("rgb(%1, %1, %1)").arg(textVal);
+        int r = 28 + static_cast<int>(10 * std::cos(colorStep));
+        int g = 32 + static_cast<int>(10 * std::sin(colorStep));
+        int textVal = 190 + static_cast<int>(65 * std::cos(colorStep + 3.14f));
+        QString tRGB = (QTime::currentTime().hour() >= 20 || QTime::currentTime().hour() <= 6) ? QString("rgb(%1, %2, %3)").arg(textVal).arg(textVal-50).arg(textVal-100) : QString("rgb(%1, %1, %1)").arg(textVal);
         viewer->viewport()->setStyleSheet(QString("background-color: rgb(%1, %2, %3);").arg(r).arg(g).arg(32));
-        viewer->setStyleSheet(QString("color: %1; font-family: 'Monospace'; font-size: 12pt;").arg(tRGB));
+        viewer->setStyleSheet(QString("color: %1; font-family: 'JetBrains Mono', 'Monospace'; font-size: 12pt;").arg(tRGB));
     }
-
     void saveGroupsToDisk() {
         QJsonObject root;
         for (auto const& [gn, files] : breakpointGroups) {
             QJsonObject go; for (auto const& [fp, lines] : files) { QJsonArray la; for (int l : lines) la.append(l); go.insert(fp, la); }
             root.insert(gn, go);
         }
-        QFile file(QDir::currentPath() + "/.monitor_bps.json"); if (file.open(QIODevice::WriteOnly)) file.write(QJsonDocument(root).toJson());
+        QFile file(QDir::currentPath() + "/.hawk_bps.json"); if (file.open(QIODevice::WriteOnly)) file.write(QJsonDocument(root).toJson());
     }
-
     void loadGroupsFromFile() {
-        QFile file(QDir::currentPath() + "/.monitor_bps.json"); if (!file.open(QIODevice::ReadOnly)) return;
+        // Recovery logic: Checks new name, then previous names
+        QStringList fileNames = { ".hawk_bps.json", ".sahin_bps.json", ".monitor_bps.json" };
+        QFile file;
+        bool found = false;
+        for(const QString &fn : fileNames) {
+            file.setFileName(QDir::currentPath() + "/" + fn);
+            if(file.exists()) { found = true; break; }
+        }
+        
+        if (!found || !file.open(QIODevice::ReadOnly)) return;
+        
         QJsonObject root = QJsonDocument::fromJson(file.readAll()).object();
         for (QString gn : root.keys()) {
             if (groupCombo->findText(gn) == -1) groupCombo->addItem(gn);
             QJsonObject go = root.value(gn).toObject();
-            for (QString fp : go.keys()) { QJsonArray la = go.value(fp).toArray(); for (auto l : la) breakpointGroups[gn][fp].insert(l.toInt()); }
+            for (QString fp : go.keys()) { 
+                QJsonArray la = go.value(fp).toArray(); 
+                for (auto l : la) breakpointGroups[gn][fp].insert(l.toInt()); 
+            }
         }
     }
-
     void onEditorSearch(const QString &t) {
         applyVisualBreakpoints(); if (t.isEmpty()) return;
         QTextCursor sc = viewer->document()->find(t, 0); if (!sc.isNull()) { viewer->setTextCursor(sc); viewer->ensureCursorVisible(); }
@@ -385,18 +394,13 @@ private slots:
         }
         viewer->setExtraSelections(sel);
     }
-
     void onToggleHealth() { 
-        healthEnabled = !healthEnabled; 
-        btnHealth->setText(healthEnabled ? "🛡 Eye: ON" : "🛡 Eye: OFF"); 
-        if(!healthEnabled) { 
-            viewer->viewport()->setStyleSheet("background-color: #1e1e1e;"); 
-            viewer->setStyleSheet("color: #d4d4d4; font-family: 'Monospace'; font-size: 12pt;"); 
-        } 
+        healthEnabled = !healthEnabled; btnHealth->setText(healthEnabled ? "🛡 Eye: ON" : "🛡 Eye: OFF"); 
+        if(!healthEnabled) { viewer->viewport()->setStyleSheet("background-color: #1e1e1e;"); viewer->setStyleSheet("color: #d4d4d4; font-family: 'JetBrains Mono', 'Monospace'; font-size: 12pt;"); } 
     }
-    
     void startProcesses() {
-        javaProcess = new QProcess(this); javaProcess->start("java", QStringList() << "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=9009" << "-cp" << projectPaths[0] + "/target/classes" << "tr.org.tspb.Main");
+        javaProcess = new QProcess(this);
+        javaProcess->start("java", QStringList() << "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=9009" << "-cp" << projectPaths[0] + "/target/classes" << "tr.org.tspb.Main");
         jdbProcess = new QProcess(this); jdbProcess->start("jdb", QStringList() << "-attach" << "9009");
         connect(jdbProcess, &QProcess::readyReadStandardOutput, this, &JavaMonitorGUI::handleJdbOutput);
     }
@@ -411,15 +415,19 @@ private:
     QFrame *customTitleBar; QLabel *titleLabel; QStandardItemModel *treeModel;
     QTreeView *tree; CodeEditor *viewer; QLineEdit *searchBar, *editorSearch; QTextEdit *jdbOutput;
     QProcess *javaProcess = nullptr, *jdbProcess = nullptr;
-    QStringList projectPaths; QString currentFilePath, hitFilePath, jdbBuffer; int hitLine = -1;
+    QStringList projectPaths; QString currentFilePath, hitFilePath, jdbBuffer;
+    JavaProjectProxy *proxyModel; 
+    int hitLine = -1;
     QString currentGroupName; std::map<QString, std::map<QString, std::set<int>>> breakpointGroups;
-    QComboBox *groupCombo; QPushButton *btnSaveGroup, *btnHealth; QTimer *healthTimer; float colorStep = 0.0f; bool healthEnabled = true;
+    QComboBox *groupCombo; QPushButton *btnSaveGroup, *btnHealth; QTimer *healthTimer;
+    float colorStep = 0.0f; bool healthEnabled = true;
 };
 
 #include "main.moc"
 int main(int argc, char *argv[]) {
     QApplication a(argc, argv);
     QStringList paths;
-    if (argc > 1) { for (int i = 1; i < argc; ++i) paths << argv[i]; } else { paths << QDir::currentPath(); }
+    if (argc > 1) { for (int i = 1; i < argc; ++i) paths << argv[i]; } 
+    else { paths << QDir::currentPath(); }
     JavaMonitorGUI w(paths); w.show(); return a.exec();
 }
