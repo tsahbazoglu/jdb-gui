@@ -147,10 +147,7 @@ mingw32-make clean
 ---
 **Vision for the New Era of Development.**
 
-## 🦅 Troubles & Controls
-
- 
-
+## 🦅 Troubleshooting
 
 1. Check the Display Protocol (Wayland vs. X11)
 ```bash
