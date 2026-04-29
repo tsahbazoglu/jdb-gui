@@ -104,8 +104,8 @@ qmake hawk.pro
 ```
 
 # 3. Compile the project
-# 'mingw32-make' is the Windows equivalent of 'make'
 ```bash
+# 'mingw32-make' is the Windows equivalent of 'make'
 mingw32-make -j %NUMBER_OF_PROCESSORS%
 ```
 
@@ -123,14 +123,18 @@ Find hawk.exe in your build folder.
 ### 4. Running the Debugger
 Pass your project paths just like on Linux. Note that Windows uses backslashes, but Qt handles both:
 
-### PowerShell
+```bash
+# PowerShell
 .\hawk.exe C:\Users\Dev\Project1 D:\JavaSource\Project2
-💡 "Make Clean" for Windows
+```
+
+### 💡 "Make Clean" for Windows
 If you need to reset your build environment on Windows, use:
 
-PowerShell
-# Removes temporary build artifacts and the .exe
 ```bash
+# PowerShell
+
+# Removes temporary build artifacts and the .exe
 mingw32-make clean
 ```
 
