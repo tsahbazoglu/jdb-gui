@@ -1,7 +1,7 @@
 # 🦅 Hawk
-### High-Precision Java Debugger for Linux Professionals
+### High-Precision Java Debugger for Java Professionals
 
-**Hawk** is a lightweight Java debugger designed for speed, visual clarity, and precision. It is a product of the **New Era of Development**, architected through intensive AI-Human collaboration. This tool represents a shift in engineering where human vision and rigorous testing guide AI-powered code generation to create high-performance native tools.
+**Hawk** is a lightweight Java debugger designed for agile, visual clarity, and precision. It is a product of the **New Era of Development**, architected through intensive AI-Human collaboration. This tool represents a shift in engineering where human vision and rigorous testing guide AI-powered code generation to create high-performance native tools.
 
 By prioritizing a **C++/Qt core**, **Hawk** offers a lean alternative to resource-heavy IDEs, giving Linux power users a "Hawk-Eye" view of their Java execution.
 
