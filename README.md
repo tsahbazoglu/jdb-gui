@@ -81,7 +81,7 @@ Run the generated hawk binary by passing the paths to your Java source directori
 To build Hawk on Windows, you need the Qt framework and a compatible C++ compiler.
 
 ### 1. Prerequisites
-Qt Framework: Download the Qt Online Installer. During installation, select:
+Qt Framework: Download the  <a href="https://www.qt.io/development/download-qt-installer" target="_blank" rel="noopener noreferrer">Qt Online Installer</a>. During installation, select:
 
 Qt 5.15.x or Qt 6.x
 
