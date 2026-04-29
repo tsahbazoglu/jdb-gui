@@ -76,6 +76,67 @@ Run the generated hawk binary by passing the paths to your Java source directori
 
 ---
 
+
+## 🛠️ Compilation & Setup (Windows)
+To build Hawk on Windows, you need the Qt framework and a compatible C++ compiler.
+
+### 1. Prerequisites
+Qt Framework: Download the Qt Online Installer. During installation, select:
+
+Qt 5.15.x or Qt 6.x
+
+MinGW (Recommended for simplicity) or MSVC 2019/2022.
+
+CMake/Ninja: Usually included with the Qt installer.
+
+### 2. Build via Command Line (MinGW)
+Open the Qt Command Prompt (available in your Start Menu after installation) and run:
+
+### PowerShell
+```bash
+# 1. Generate the Project file
+qmake -project "QT += core gui widgets"
+```
+
+# 2. Generate the Makefile
+```bash
+qmake hawk.pro
+```
+
+# 3. Compile the project
+# 'mingw32-make' is the Windows equivalent of 'make'
+```bash
+mingw32-make -j %NUMBER_OF_PROCESSORS%
+```
+
+### 3. Build via Qt Creator (Recommended for Windows)
+Open Qt Creator.
+
+Go to File > Open File or Project and select your hawk.pro.
+
+Select your Kit (e.g., Desktop Qt 6.x.x MinGW).
+
+Click the Hammer icon (Build) in the bottom left.
+
+Find hawk.exe in your build folder.
+
+### 4. Running the Debugger
+Pass your project paths just like on Linux. Note that Windows uses backslashes, but Qt handles both:
+
+### PowerShell
+.\hawk.exe C:\Users\Dev\Project1 D:\JavaSource\Project2
+💡 "Make Clean" for Windows
+If you need to reset your build environment on Windows, use:
+
+PowerShell
+# Removes temporary build artifacts and the .exe
+```bash
+mingw32-make clean
+```
+
+---
+
+
 ## 🦅 The Name
 **Hawk** represents the three pillars of this project: **Vision, Speed, and Precision.** It was built to help developers cut through the noise and strike at the heart of complex bugs with hawk-like accuracy.
 
