@@ -146,3 +146,53 @@ mingw32-make clean
 
 ---
 **Vision for the New Era of Development.**
+
+## 🦅 Troubles & Controls
+
+ 
+
+
+1. Check the Display Protocol (Wayland vs. X11)
+```bash
+echo $XDG_SESSION_TYPE
+```
+
+2. Check the Desktop Environment (GNOME, KDE, etc.)
+```bash
+echo $XDG_CURRENT_DESKTOP
+```
+
+4. All-in-One
+```bash
+loginctl show-session $(loginctl | grep $(whoami) | awk '{print $1}') -p Type
+```
+
+5. OR the more user-friendly:
+```bash
+hostnamectl
+```
+6. Quick Fix for GNOME on Wayland:
+If you are on GNOME, your best bet to make Hawk pop up is to disable the protection via terminal:
+```bash
+gsettings get org.gnome.desktop.wm.preferences focus-new-windows
+```
+
+```bash
+gsettings set org.gnome.desktop.wm.preferences focus-new-windows 'smart'
+```
+
+revert
+```bash
+gsettings set org.gnome.desktop.wm.preferences focus-new-windows 'strict'
+```
+
+
+
+
+
+
+
+
+
+
+

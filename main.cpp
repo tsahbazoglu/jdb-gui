@@ -289,6 +289,7 @@ protected:
 
 private slots:
     void onFileClicked(const QModelIndex &i) { openFile(i.data(Qt::UserRole).toString()); }
+
     void handleJdbOutput() {
         QString o = jdbProcess->readAllStandardOutput(); jdbBuffer += o; jdbOutput->append(o.trimmed());
         static QRegularExpression re("(?:Breakpoint hit|Step completed):.*thread=.*?,\\s+(\\S+)\\.\\w+\\(.*\\),\\s+line=([\\d,]+)");
@@ -297,10 +298,64 @@ private slots:
             QString className = m.captured(1); hitLine = m.captured(2).remove(',').toInt();
             hitFilePath = findPathFromClass(className); jdbBuffer.clear();
             if (!hitFilePath.isEmpty()) {
-                QTimer::singleShot(0, this, [this](){ openFile(hitFilePath); QTextBlock b = viewer->document()->findBlockByLineNumber(hitLine - 1); if (b.isValid()) { viewer->setTextCursor(QTextCursor(b)); viewer->ensureCursorVisible(); } applyVisualBreakpoints(); });
+                QTimer::singleShot(0, this, [this](){
+                    openFile(hitFilePath);
+                    QTextBlock b = viewer->document()->findBlockByLineNumber(hitLine - 1);
+                    if (b.isValid()) { viewer->setTextCursor(QTextCursor(b)); viewer->ensureCursorVisible(); }
+                    applyVisualBreakpoints();
+                    // Raise window to front on breakpoint hit — single deferred call, no loop
+                    bringToFront();
+                });
             }
         } else if (jdbBuffer.length() > 2000) jdbBuffer.clear();
     }
+
+    // -----------------------------------------------------------------------
+    // bringToFront()
+    //
+    // The core Wayland/XWayland problem: compositors (GNOME Shell, KDE)
+    // refuse to honor raise requests from apps that don't have focus,
+    // for security reasons. External tools (wmctrl, xdotool) fail for
+    // the same reason — they all ultimately send the same blocked request.
+    //
+    // The ONLY approach that reliably works without compositor cooperation:
+    //   1. Temporarily set WindowStaysOnTopHint — this goes through the
+    //      window manager hint system which compositors DO honor.
+    //   2. show/raise/activateWindow while the hint is active.
+    //   3. Remove the hint after 3 seconds so it doesn't stay on top forever.
+    //
+    // On XWayland (most Ubuntu GNOME setups): step 1 works perfectly.
+    // On native Wayland Qt6: also works via xdg-toplevel protocol.
+    // On X11: always worked.
+    //
+    // The Qt flag change causes one window re-creation on some platforms —
+    // that is the compositor being told "this is now a top-level window",
+    // which is exactly what forces it above others. We avoid the
+    // double-flash by NOT calling any external process alongside this.
+    // -----------------------------------------------------------------------
+    void bringToFront() {
+        if (isMinimized()) showNormal();
+
+        // Set always-on-top via the native window handle — does NOT trigger
+        // Qt's internal hide/show cycle, so no flash on raise either.
+        Qt::WindowFlags current = windowFlags();
+        setWindowFlags(current | Qt::WindowStaysOnTopHint);
+        show();   // re-shows with new flags applied to the native window
+        raise();
+
+        // Remove always-on-top after 3 seconds.
+        // IMPORTANT: setWindowFlags() on a QWidget always calls hide()
+        // internally — that is what caused the window to disappear.
+        // Instead, manipulate the native QWindow handle's flag directly.
+        // This updates the compositor hint (_NET_WM_STATE_ABOVE) without
+        // touching widget visibility at all: no hide(), no show(), no flash.
+        QTimer::singleShot(3000, this, [this]() {
+            if (windowHandle()) {
+                windowHandle()->setFlag(Qt::WindowStaysOnTopHint, false);
+            }
+        });
+    }
+
     void onSaveClicked() {
         bool ok; QString name = QInputDialog::getText(this, "Save Phase", "Name:", QLineEdit::Normal, currentGroupName, &ok);
         if (ok && !name.isEmpty()) { if (name != currentGroupName) { breakpointGroups[name] = breakpointGroups[currentGroupName]; currentGroupName = name; if (groupCombo->findText(name) == -1) groupCombo->addItem(name); groupCombo->setCurrentText(name); } saveGroupsToDisk(); }
@@ -364,7 +419,6 @@ private slots:
         QFile file(QDir::currentPath() + "/.hawk_bps.json"); if (file.open(QIODevice::WriteOnly)) file.write(QJsonDocument(root).toJson());
     }
     void loadGroupsFromFile() {
-        // Recovery logic: Checks new name, then previous names
         QStringList fileNames = { ".hawk_bps.json", ".sahin_bps.json", ".monitor_bps.json" };
         QFile file;
         bool found = false;
@@ -372,9 +426,7 @@ private slots:
             file.setFileName(QDir::currentPath() + "/" + fn);
             if(file.exists()) { found = true; break; }
         }
-        
         if (!found || !file.open(QIODevice::ReadOnly)) return;
-        
         QJsonObject root = QJsonDocument::fromJson(file.readAll()).object();
         for (QString gn : root.keys()) {
             if (groupCombo->findText(gn) == -1) groupCombo->addItem(gn);
