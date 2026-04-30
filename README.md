@@ -1,4 +1,10 @@
 # 🦅 Hawk
+
+
+## License
+This project is licensed under the GNU General Public License v3.0. 
+See the [LICENSE](LICENSE) file for the full license text.
+
 ### High-Precision Java Debugger for Java Professionals
 
 **Hawk** is a lightweight Java debugger designed for agile, visual clarity, and precision. It is a product of the **New Era of Development**, architected through intensive AI-Human collaboration. This tool represents a shift in engineering where human vision and rigorous testing guide AI-powered code generation to create high-performance native tools.
