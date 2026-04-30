@@ -150,7 +150,7 @@ mingw32-make clean
 
 ---
 
-## 🗺️ Roadmap / Yol Haritası
+## 🗺️ Roadmap
 
 The current status and future plans of the project are outlined below. If you would like to contribute, please take a look at the tasks in the **"Planned"** stage!
 
@@ -165,11 +165,10 @@ The current status and future plans of the project are outlined below. If you wo
 | 🚀 | **One-Click Installer** | Pre-built binaries for Windows, Linux, and macOS. | Low |
 
 **Legend:**
-*   ✅ **Done:** Tamamlandı ve kararlı sürümde mevcut.
-*   🚧 **In Progress:** Şu an üzerinde çalışılıyor.
-*   📅 **Planned:** Gelecek sürümler için planlandı.
-*   🚀 **Future Goal:** Uzun vadeli hedefler.
-
+*   ✅ **Done:** Completed and available in the stable version.
+*   🚧 **In Progress:** Currently under development.
+*   📅 **Planned:** Scheduled for future releases.
+*   🚀 **Future Goal:** Long-term objectives.
 ---
 
 **Vision for the New Era of Development.**
