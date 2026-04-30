@@ -150,11 +150,28 @@ mingw32-make clean
 
 ---
 
+## 🗺️ Roadmap / Yol Haritası
 
-## 🦅 The Name
-**Hawk** represents the three pillars of this project: **Vision, Speed, and Precision.** It was built to help developers cut through the noise and strike at the heart of complex bugs with hawk-like accuracy.
+The current status and future plans of the project are outlined below. If you would like to contribute, please take a look at the tasks in the **"Planned"** stage!
+
+| Status | Feature | Description | Priority |
+| :---: | :--- | :--- | :---: |
+| ✅ | **Core JDB Connection** | Basic integration with Java Debugger process. | High |
+| ✅ | **Breakpoint Management** | Adding, removing, and listing breakpoints via GUI. | High |
+| 🚧 | **Live Line Highlighting** | Real-time visual tracking of the current executing line. | High |
+| 📅 | **Variables Inspector** | A dedicated panel to view and modify local variables. | Medium |
+| 📅 | **Call Stack View** | Visualizing the current thread's call stack. | Medium |
+| 📅 | **Multi-Thread Support** | Switching between different threads and monitoring states. | Low |
+| 🚀 | **One-Click Installer** | Pre-built binaries for Windows, Linux, and macOS. | Low |
+
+**Legend:**
+*   ✅ **Done:** Tamamlandı ve kararlı sürümde mevcut.
+*   🚧 **In Progress:** Şu an üzerinde çalışılıyor.
+*   📅 **Planned:** Gelecek sürümler için planlandı.
+*   🚀 **Future Goal:** Uzun vadeli hedefler.
 
 ---
+
 **Vision for the New Era of Development.**
 
 ## 🦅 Troubleshooting
@@ -194,6 +211,10 @@ gsettings set org.gnome.desktop.wm.preferences focus-new-windows 'strict'
 ```
 
 
+## 🦅 The Name
+**Hawk** represents the three pillars of this project: **Vision, Speed, and Precision.** It was built to help developers cut through the noise and strike at the heart of complex bugs with hawk-like accuracy.
+
+---
 
 
 
