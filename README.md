@@ -4,11 +4,7 @@
 
 # 🦅 Hawk
 
-
-## License
-This project is licensed under the GNU General Public License v3.0. 
-See the [LICENSE](LICENSE) file for the full license text.
-
+## About
 ### High-Precision Java Debugger for Java Professionals
 
 **Hawk** is a lightweight Java debugger designed for agile, visual clarity, and precision. It is a product of the **New Era of Development**, architected through intensive AI-Human collaboration. This tool represents a shift in engineering where human vision and rigorous testing guide AI-powered code generation to create high-performance native tools.
@@ -17,7 +13,11 @@ By prioritizing a **C++/Qt core**, **Hawk** offers a lean alternative to resourc
 
 ---
 
+
 ## 🚀 Key Performance Features
+
+![Demo](screenshots/demo.png)
+
 
 ### 🦅 The Predator Engine (Auto-File Resolution)
 The debugger operates like a hunter. Even with no files loaded, the moment a breakpoint is hit:
@@ -208,6 +208,25 @@ revert
 ```bash
 gsettings set org.gnome.desktop.wm.preferences focus-new-windows 'strict'
 ```
+
+## 🤝 Contributing
+
+Contributions are what make the open-source community such an amazing place to learn, inspire, and create. Any contributions you make are **greatly appreciated**.
+
+If you have a suggestion that would make this better, please fork the repo and create a pull request. You can also simply open an issue with the tag "enhancement".
+Don't forget to give the project a star! Thanks again!
+
+### How to Contribute
+1. **Fork** the Project.
+2. Create your **Feature Branch** (`git checkout -b feature/AmazingFeature`).
+3. **Commit** your Changes (`git commit -m 'Add some AmazingFeature'`).
+4. **Push** to the Branch (Normally I can help with things like this, but I don't seem to have access to that content. You can try again or ask me for something else.
+
+---
+
+## License
+This project is licensed under the GNU General Public License v3.0. 
+See the [LICENSE](LICENSE) file for the full license text.
 
 
 ## 🦅 The Name
