@@ -4,6 +4,13 @@
 
 # 🦅 Hawk
 
+## Table of Contents
+1. [About](#introduction)
+2. [Prerequisites](#prerequisites)
+3. [Troubleshooting](#troubleshooting)
+4. [Go to Installation Section](#installation)
+
+<a name="introduction"></a>
 ## About
 ### High-Precision Java Debugger for Java Professionals
 
@@ -42,6 +49,8 @@ Designed to protect developer vision during long sessions. It features a synchro
 
 ---
 
+<a name="installation"></a>
+<a name="prerequisites"></a>
 ## 🛠️ Compilation & Setup (Linux)
 Since **Hawk** is a native Linux tool built with C++ and Qt, Java developers can follow these streamlined steps to build and run the debugger.
 
@@ -173,6 +182,7 @@ The current status and future plans of the project are outlined below. If you wo
 
 **Vision for the New Era of Development.**
 
+<a name="troubleshooting"></a>
 ## 🦅 Troubleshooting
 
 1. Check the Display Protocol (Wayland vs. X11)
