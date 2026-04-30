@@ -1,3 +1,7 @@
+![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)
+![C++](https://img.shields.io/badge/C++-20-blue?logo=cplusplus)
+![Qt](https://img.shields.io/badge/Qt-6-green?logo=qt)
+
 # 🦅 Hawk
 
 
